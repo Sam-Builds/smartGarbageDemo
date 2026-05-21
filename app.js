@@ -21,9 +21,7 @@ scanActive: false,
 /* ========== Mock API service (simulates network latency and server) ========== */
 const apiService = {
   const STORAGE_KEY = 'sgcs_route_data';
-
-const apiService = {
-  async fetchResidents(wardId = 1) {
+async fetchResidents(wardId = 1) {
     return new Promise((resolve) => {
       setTimeout(() => {
         const stored = localStorage.getItem(STORAGE_KEY);
@@ -194,12 +192,7 @@ function switchView(viewName) {
   renderAll();
 }
 
-function updateHouseStatus(id, status, extras = {}) {
-  const house = getHouseById(id);
-  if (!house) return;
-  Object.assign(house, { status }, extras);
-  renderAll();
-}
+
 
 function addBroadcast(message) {
   state.broadcastCount += 1;
