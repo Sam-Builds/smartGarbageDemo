@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart Garbage Collection System</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar hidden">
+    <div class="brand">
+      <div class="brand-mark">SG</div>
+      <div>
+        <h1>Smart Garbage Collection System</h1>
+        <p>Enterprise demo for admin, collector, resident, and ward member workflows</p>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <button id="signOutBtn" class="btn" type="button">Sign Out</button>
+    </div>
+  </header>
+
+  <!-- Authentication view inserted before the main app shell -->
+  <section id="loginView" class="screen active auth-screen" aria-labelledby="loginHeading">
+    <div class="login-panel card">
+      <h2 id="loginHeading">Sign in to Smart Garbage Console</h2>
+      <p class="muted">Enter role username (admin, collector, resident, or ward). Any password accepted for demo.</p>
+      <div class="form-field">
+        <label for="loginUsername">Username</label>
+        <input id="loginUsername" name="username" type="text" autocomplete="username" placeholder="e.g. collector" />
+      </div>
+      <div class="form-field">
+        <label for="loginPassword">Password</label>
+        <input id="loginPassword" name="password" type="password" autocomplete="current-password" placeholder="password" />
+      </div>
+      <div class="login-actions">
+        <button id="loginBtn" class="btn btn-primary" type="button">Sign In</button>
+      </div>
+    </div>
+  </section>
+
+  <main class="app-shell hidden">
+    <section id="alertArea" class="alert-area" aria-live="polite"></section>
+
+    <section id="adminView" class="screen" aria-labelledby="adminHeading">
+      <div class="screen-header">
+        <div>
+          <h2 id="adminHeading">Admin Dashboard</h2>
+          <p>Broadcast notices and review system activity.</p>
+        </div>
+        <button id="broadcastBtn" class="btn btn-primary" type="button">Broadcast Monthly Notification</button>
+      </div>
+
+      <div class="stats-grid">
+        <article class="card stat-card">
+          <span class="label">Total Residents</span>
+          <strong id="residentTotal">509</strong>
+          <small>Mocked subset shown in the demo</small>
+        </article>
+        <article class="card stat-card">
+          <span class="label">Active Role</span>
+          <strong id="activeRoleLabel">Admin</strong>
+          <small>State switches instantly across the SPA</small>
+        </article>
+        <article class="card stat-card">
+          <span class="label">Monthly Broadcasts</span>
+          <strong id="broadcastCount">0</strong>
+          <small>Logged to the notification history table</small>
+        </article>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3>Notification History</h3>
+          <span class="muted">Newest first</span>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Message</th>
+                <th>Actor</th>
+              </tr>
+            </thead>
+            <tbody id="notificationHistory"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="collectorView" class="screen" aria-labelledby="collectorHeading">
+      <div class="screen-header">
+        <div>
+          <h2 id="collectorHeading">Collector Shift Console</h2>
+          <p>Camera capture, route progression, proof collection, and payment logging.</p>
+        </div>
+        <div class="screen-actions">
+          <button id="startShiftBtn" class="btn btn-primary" type="button">Start Shift</button>
+          <button id="endShiftBtn" class="btn btn-warning" type="button" disabled>End Shift</button>
+          <button id="captureGpsBtn" class="btn btn-secondary" type="button" disabled>Capture Photo &amp; Stamp GPS</button>
+        </div>
+      </div>
+
+      <div class="collector-layout">
+        <article class="card camera-card">
+          <div class="card-header">
+            <h3>Camera Feed</h3>
+            <span id="cameraStatus" class="badge badge-pending">Camera idle</span>
+          </div>
+          <video id="cameraFeed" autoplay playsinline muted></video>
+          <div class="camera-meta">
+            <span id="gpsStamp">GPS not stamped</span>
+            <span id="shiftState">Shift not started</span>
+          </div>
+        </article>
+
+        <article class="card map-card">
+          <div class="card-header">
+            <h3>Nearby Houses</h3>
+            <span class="muted">Tap a house to log attendance</span>
+          </div>
+          <div id="houseList" class="house-list" aria-live="polite"></div>
+        </article>
+      </div>
+    </section>
+
+    <section id="residentView" class="screen" aria-labelledby="residentHeading">
+      <div class="screen-header">
+        <div>
+          <h2 id="residentHeading">Resident Portal</h2>
+          <p>Inbox, QR pass, and receipts.</p>
+        </div>
+      </div>
+
+      <div class="resident-layout">
+        <article class="card">
+          <div class="card-header">
+            <h3>Inbox</h3>
+            <span class="muted">Live notifications</span>
+          </div>
+          <ul id="residentInbox" class="feed-list"></ul>
+        </article>
+
+        <article class="card qr-card">
+          <div class="card-header">
+            <h3>QR Pass</h3>
+            <span class="badge badge-success">Ready</span>
+          </div>
+          <div class="qr-placeholder" aria-label="Static placeholder QR code"></div>
+          <div class="qr-label">
+            <strong>House #142</strong>
+            <span>Present this identifier during collector verification</span>
+          </div>
+        </article>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3>Digital Receipts</h3>
+          <span class="muted">Generated only after completed collection with payment</span>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Receipt ID</th>
+                <th>House</th>
+                <th>Amount</th>
+                <th>Mode</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="receiptTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="wardView" class="screen" aria-labelledby="wardHeading">
+      <div class="screen-header">
+        <div>
+          <h2 id="wardHeading">Ward Member Report</h2>
+          <p>Month-end progress and unresolved households.</p>
+        </div>
+      </div>
+
+      <div class="stats-grid">
+        <article class="card stat-card">
+          <span class="label">Collected</span>
+          <strong id="collectedCount">0</strong>
+          <small>Marked done after collection or online payment</small>
+        </article>
+        <article class="card stat-card">
+          <span class="label">Pending</span>
+          <strong id="pendingCount">0</strong>
+          <small>Attempted and missed houses requiring follow-up</small>
+        </article>
+        <article class="card stat-card">
+          <span class="label">Coverage</span>
+          <strong id="coverageRate">0%</strong>
+          <small>Calculated from the visible subset</small>
+        </article>
+      </div>
+
+      <article class="card">
+        <div class="card-header">
+          <h3>Collection Progress</h3>
+          <span class="muted">Collected vs pending</span>
+        </div>
+        <div class="progress-track" aria-label="Collection progress bar">
+          <div id="collectedBar" class="progress-segment progress-collected"></div>
+          <div id="pendingBar" class="progress-segment progress-pending"></div>
+        </div>
+        <div class="progress-legend">
+          <span><i class="swatch collected"></i> Houses Collected</span>
+          <span><i class="swatch pending"></i> Houses Pending (Attempted/Missed)</span>
+        </div>
+      </article>
+
+      <article class="card">
+        <div class="card-header">
+          <h3>Pending Houses</h3>
+          <span class="muted">Specific addresses flagged for follow-up</span>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>House</th>
+                <th>Address</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="pendingHouseTable"></tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <div id="houseModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="houseModalTitle">
+    <div class="modal-panel">
+      <div class="modal-header">
+        <div>
+          <h3 id="houseModalTitle">House Interaction</h3>
+          <p id="houseModalSubtitle">Select a collection path.</p>
+        </div>
+        <button class="icon-btn" id="closeHouseModal" type="button" aria-label="Close modal">×</button>
+      </div>
+      <div id="houseModalBody" class="modal-body"></div>
+    </div>
+  </div>
+
+  <div id="paymentModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="paymentModalTitle">
+    <div class="modal-panel">
+      <div class="modal-header">
+        <div>
+          <h3 id="paymentModalTitle">Payment Confirmation</h3>
+          <p>Anti-fraud validation requires a logged payment before completion.</p>
+        </div>
+        <button class="icon-btn" id="closePaymentModal" type="button" aria-label="Close modal">×</button>
+      </div>
+      <div id="paymentModalBody" class="modal-body"></div>
+    </div>
+  </div>
+
+  <div id="scannerModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="scannerModalTitle">
+    <div class="modal-panel scanner-panel">
+      <div class="modal-header">
+        <div>
+          <h3 id="scannerModalTitle">Scanning...</h3>
+          <p id="scannerModalSubtitle">QR and GPS validation are in progress.</p>
+        </div>
+        <button class="icon-btn" id="closeScannerModal" type="button" aria-label="Close modal">×</button>
+      </div>
+      <div class="scanner-visual">
+        <div class="scanner-grid"></div>
+        <div class="scanner-line"></div>
+      </div>
+      <div class="modal-footer">
+        <span id="scannerMessage">Initializing scan.</span>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.5.0/qrcode.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
