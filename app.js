@@ -30,7 +30,15 @@ async fetchResidents(wardId = 1) {
       setTimeout(() => {
         const stored = localStorage.getItem(STORAGE_KEY);
         if (stored) {
-          resolve(JSON.parse(stored)); // Load persistent route
+          try {
+            resolve(JSON.parse(stored)); // Safely load persistent route
+          } catch (e) {
+            console.warn("Storage corrupted. Resetting route.");
+            localStorage.removeItem(STORAGE_KEY);
+            const newRoute = generateDailyRoute(20);
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(newRoute));
+            resolve(newRoute);
+          }
         } else {
           const newRoute = generateDailyRoute(20);
           localStorage.setItem(STORAGE_KEY, JSON.stringify(newRoute));
@@ -39,7 +47,7 @@ async fetchResidents(wardId = 1) {
       }, 600);
     });
   },
-
+  
   async fetchBroadcasts() {
     return new Promise((resolve) => {
       setTimeout(() => {
