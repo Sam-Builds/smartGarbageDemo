@@ -19,8 +19,12 @@ scanActive: false,
 };
 
 /* ========== Mock API service (simulates network latency and server) ========== */
+
+
+const STORAGE_KEY = 'sgcs_route_data';
+
 const apiService = {
-  const STORAGE_KEY = 'sgcs_route_data';
+  
 async fetchResidents(wardId = 1) {
     return new Promise((resolve) => {
       setTimeout(() => {
