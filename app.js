@@ -3,6 +3,7 @@ const state = {
   currentUserId: null, // Track logged-in user ID for resident portal
   broadcastCount: 0,
   cameraStream: null,
+scanActive: false,
   shiftStarted: false,
   gpsStamped: false,
   currentHouseId: null,
@@ -19,10 +20,20 @@ const state = {
 
 /* ========== Mock API service (simulates network latency and server) ========== */
 const apiService = {
+  const STORAGE_KEY = 'sgcs_route_data';
+
+const apiService = {
   async fetchResidents(wardId = 1) {
     return new Promise((resolve) => {
       setTimeout(() => {
-        resolve(generateDailyRoute(20));
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          resolve(JSON.parse(stored)); // Load persistent route
+        } else {
+          const newRoute = generateDailyRoute(20);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(newRoute));
+          resolve(newRoute);
+        }
       }, 600);
     });
   },
@@ -81,6 +92,14 @@ function generateDailyRoute(count = 20) {
     houses.push({ id, houseNo: `H-${100 + i}`, address: `${100 + i} Demo Street`, status: 'pending' });
   }
   return houses;
+}
+
+function updateHouseStatus(id, status, extras = {}) {
+  const house = getHouseById(id);
+  if (!house) return;
+  Object.assign(house, { status }, extras);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state.residents)); // Persist changes
+  renderAll();
 }
 
 const els = {};
@@ -164,10 +183,6 @@ function showAlert(message) {
 
 function openModal(modal) {
   modal.classList.remove('hidden');
-}
-
-function closeModal(modal) {
-  modal.classList.add('hidden');
 }
 
 function switchView(viewName) {
@@ -316,15 +331,7 @@ function renderAll() {
   renderWard();
 }
 
-function stopCamera() {
-  if (state.cameraStream) {
-    state.cameraStream.getTracks().forEach((track) => track.stop());
-    state.cameraStream = null;
-  }
-  if (els.cameraFeed) {
-    els.cameraFeed.srcObject = null;
-  }
-}
+
 
 // Persistent session helpers
 function saveSession(username, role, userId) {
@@ -346,7 +353,59 @@ function getStoredSession() {
     userId: localStorage.getItem('sgcs_userId')
   };
 }
+function tickScan() {
+  // Stop looping if shift ended or scanning is paused
+  if (!state.shiftStarted || !state.scanActive) return;
 
+  if (els.cameraFeed.readyState === els.cameraFeed.HAVE_ENOUGH_DATA) {
+    const canvas = document.createElement("canvas");
+    canvas.width = els.cameraFeed.videoWidth;
+    canvas.height = els.cameraFeed.videoHeight;
+    const ctx = canvas.getContext("2d");
+    
+    ctx.drawImage(els.cameraFeed, 0, 0, canvas.width, canvas.height);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    
+    const code = jsQR(imageData.data, imageData.width, imageData.height, {
+      inversionAttempts: "dontInvert",
+    });
+
+    if (code && code.data) {
+      handleQRDetected(code.data);
+    }
+  }
+  // Queue the next frame
+  requestAnimationFrame(tickScan);
+}
+
+function handleQRDetected(qrText) {
+  state.scanActive = false; // Pause scanning to prevent multiple popups
+
+  const house = state.residents.find(h => h.houseNo === qrText);
+  if (house) {
+    if (house.status === 'done') {
+      showAlert(`${house.houseNo} is already marked as DONE.`);
+      setTimeout(() => { state.scanActive = true; }, 3000);
+    } else {
+      // Valid uncollected house found! Auto-trigger the flow.
+      closeModal(els.houseModal); // Close manual selection if open
+      state.pendingScanHouseId = house.id;
+      
+      els.scannerSubtitle.textContent = 'Live QR match detected. Running validation.';
+      els.scannerMessage.textContent = `Successfully matched ${house.houseNo}`;
+      openModal(els.scannerModal);
+
+      window.clearTimeout(state.scannerTimer);
+      state.scannerTimer = window.setTimeout(() => {
+        closeModal(els.scannerModal);
+        openPaymentModal(house.id);
+      }, 1500);
+    }
+  } else {
+    // If it scans something unrelated, ignore and resume
+    setTimeout(() => { state.scanActive = true; }, 1500);
+  }
+}
 // Authentication and data-loading helpers
 async function handleLogin() {
   const username = (els.loginUsername.value || '').trim().toLowerCase();
@@ -412,42 +471,46 @@ function renderLoadingSkeleton() {
 
 async function startShift() {
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    // Request environment facing camera for mobile devices
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
     state.cameraStream = stream;
     els.cameraFeed.srcObject = stream;
+    els.cameraFeed.setAttribute("playsinline", true); // Required for iOS Safari
+    els.cameraFeed.play();
+    
     state.shiftStarted = true;
     state.gpsStamped = false;
+    state.scanActive = true; // Enable scanning
+    requestAnimationFrame(tickScan); // Start the scanning loop
+
     showAlert('Camera opened successfully. Shift started.');
-    // UI toggles
     if (els.captureGpsBtn) els.captureGpsBtn.disabled = false;
     if (els.endShiftBtn) els.endShiftBtn.disabled = false;
     if (els.startShiftBtn) els.startShiftBtn.disabled = true;
   } catch (error) {
     state.shiftStarted = false;
-    showAlert('Camera permission blocked. Please allow access to continue the collector demo.');
+    showAlert('Camera permission blocked. Please allow access.');
   } finally {
     renderCollector();
   }
 }
 
-async function endShift() {
-  if (!state.shiftStarted) return;
-  try {
-    showAlert('Submitting shift summary...');
-    const payload = { completed: state.residents.filter(r => r.status === 'done').length, total: state.residents.length };
-    await apiService.submitShiftSummary(payload);
-    // stop camera
-    stopCamera();
-    state.shiftStarted = false;
+function stopCamera() {
+  state.scanActive = false; // Stop scanning loop
+  if (state.cameraStream) {
+    state.cameraStream.getTracks().forEach((track) => track.stop());
     state.cameraStream = null;
-    state.gpsStamped = false;
-    if (els.captureGpsBtn) els.captureGpsBtn.disabled = true;
-    if (els.endShiftBtn) els.endShiftBtn.disabled = true;
-    if (els.startShiftBtn) els.startShiftBtn.disabled = false;
-    showAlert('Shift ended and summary submitted.');
-    renderCollector();
-  } catch (err) {
-    showAlert('Failed to submit shift summary. Please try again.');
+  }
+  if (els.cameraFeed) {
+    els.cameraFeed.srcObject = null;
+  }
+}
+
+function closeModal(modal) {
+  modal.classList.add('hidden');
+  // Resume scanning automatically when a payment or scanner modal is dismissed
+  if (state.shiftStarted && (modal === els.paymentModal || modal === els.scannerModal || modal === els.houseModal)) {
+    setTimeout(() => { state.scanActive = true; }, 1000);
   }
 }
 
